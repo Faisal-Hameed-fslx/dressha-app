@@ -90,6 +90,17 @@ cd frontend
 npm install
 ```
 
+1. Create a `frontend/.env` file if you want to keep the Google auth IDs out of source files. The frontend currently reads these variables:
+
+```env
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=your_google_web_client_id
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=your_google_android_client_id
+# Optional if you later switch frontend/store/run.js to use env instead of a hardcoded URL:
+# EXPO_PUBLIC_BACKEND_URL=http://192.168.1.175:3000
+```
+
+The current app uses `frontend/store/run.js` for the backend URL, so that file still controls the API host unless you wire it to an env variable.
+
 1. Start Expo:
 
 ```bash
