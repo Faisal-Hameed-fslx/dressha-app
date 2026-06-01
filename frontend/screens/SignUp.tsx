@@ -3,14 +3,14 @@ import { useNavigation } from '@react-navigation/native';
 import * as AuthSession from 'expo-auth-session';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Text, TouchableOpacity, View } from 'react-native';
 import LuxuryBanner from '../components/Luxury/LuxuryBanner';
 import LuxuryButton from '../components/Luxury/LuxuryButton';
 import LuxuryCard from '../components/Luxury/LuxuryCard';
 import LuxuryInput from '../components/Luxury/LuxuryInput';
 import { useLanguage } from '../providers/LanguageProvider';
-import { buildGoogleAuthRequestConfig, discovery, exchangeGoogleCode } from '../services/googleAuth';
+import { buildGoogleAuthRequestConfig, discovery, exchangeGoogleCode, fetchGoogleAuthClientIds, GoogleAuthClientIds } from '../services/googleAuth';
 import useAuthStore from '../store/auth';
 import { useTheme } from '../theme/ThemeProvider';
 
@@ -31,7 +31,34 @@ const SignUp = () => {
   const { t } = useLanguage();
   const { signup, setAuthFromServer, loading, error, setError, clearError } = useAuthStore();
   const useProxy = Constants.appOwnership === 'expo';
-  const [request, , promptAsync] = AuthSession.useAuthRequest(buildGoogleAuthRequestConfig(useProxy), discovery);
+  const [googleClientIds, setGoogleClientIds] = useState<GoogleAuthClientIds | null>(null);
+  const [request, , promptAsync] = AuthSession.useAuthRequest(
+    buildGoogleAuthRequestConfig(useProxy, undefined, googleClientIds),
+    discovery
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadGoogleClientIds = async () => {
+      try {
+        const ids = await fetchGoogleAuthClientIds();
+        if (isMounted) {
+          setGoogleClientIds(ids);
+        }
+      } catch (error: any) {
+        if (isMounted) {
+          setError(error?.message || 'Failed to load Google auth config');
+        }
+      }
+    };
+
+    loadGoogleClientIds();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [setError]);
 
   const handleSignUp = async () => {
     if (!email || !password || !username) {
@@ -158,11 +185,11 @@ const pickImage = useCallback(async () => {
 
         <TouchableOpacity
           onPress={handleGoogleSignUp}
-          disabled={loading}
+          disabled={loading || !request}
           className="mb-4 flex-row items-center justify-center rounded-lg border py-3"
           style={{ backgroundColor: theme.colors.card, borderColor: theme.colors.accent }}
         >
-          {loading ? (
+          {loading || !request ? (
             <ActivityIndicator color={theme.colors.accent} />
           ) : (
             <>

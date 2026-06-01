@@ -388,6 +388,24 @@ app.post("/login", async (req, res) => {
   }
 });
 
+app.get("/auth/google/config", async (req, res) => {
+  try {
+    if (!googleWebClientId) {
+      return res
+        .status(500)
+        .json({ error: "Google web client ID not configured on server" });
+    }
+
+    return res.json({
+      webClientId: googleWebClientId,
+      androidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID || null,
+    });
+  } catch (error) {
+    console.error("Google auth config error:", error);
+    return res.status(500).json({ error: error.message || "Google auth config failed" });
+  }
+});
+
 app.post("/auth/google", async (req, res) => {
   try {
     const { idToken } = req.body || {};

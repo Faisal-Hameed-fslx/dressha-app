@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as AuthSession from 'expo-auth-session';
 import Constants from 'expo-constants';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import LuxuryBanner from '../components/Luxury/LuxuryBanner';
 import LuxuryButton from '../components/Luxury/LuxuryButton';
 import LuxuryCard from '../components/Luxury/LuxuryCard';
 import LuxuryInput from '../components/Luxury/LuxuryInput';
 import { useLanguage } from '../providers/LanguageProvider';
-import { buildGoogleAuthRequestConfig, buildGoogleProxyStartUrl, discovery, exchangeGoogleCode } from '../services/googleAuth';
+import { buildGoogleAuthRequestConfig, buildGoogleProxyStartUrl, discovery, exchangeGoogleCode, fetchGoogleAuthClientIds, GoogleAuthClientIds } from '../services/googleAuth';
 import useAuthStore from '../store/auth';
 import { useTheme } from '../theme/ThemeProvider';
 
@@ -19,15 +19,42 @@ const SignIn = () => {
   const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [googleClientIds, setGoogleClientIds] = useState<GoogleAuthClientIds | null>(null);
   const { login, setAuthFromServer, loading, error, setError, clearError } = useAuthStore();
   const useProxy = Constants.appOwnership === 'expo';
   const owner = Constants.expoConfig?.owner;
   const slug = Constants.expoConfig?.slug;
   const projectNameForProxy = owner && slug ? `@${owner}/${slug}` : undefined;
-  const [request, , promptAsync] = AuthSession.useAuthRequest(buildGoogleAuthRequestConfig(useProxy, projectNameForProxy), discovery);
+  const [request, , promptAsync] = AuthSession.useAuthRequest(
+    buildGoogleAuthRequestConfig(useProxy, projectNameForProxy, googleClientIds),
+    discovery
+  );
   const appReturnUrl = AuthSession.getDefaultReturnUrl();
   // For native builds: use request.redirectUri. For Expo Go: use proxy URL
   const redirectUri = useProxy && projectNameForProxy ? `https://auth.expo.io/${projectNameForProxy}` : request?.redirectUri;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadGoogleClientIds = async () => {
+      try {
+        const ids = await fetchGoogleAuthClientIds();
+        if (isMounted) {
+          setGoogleClientIds(ids);
+        }
+      } catch (error: any) {
+        if (isMounted) {
+          setError(error?.message || 'Failed to load Google auth config');
+        }
+      }
+    };
+
+    loadGoogleClientIds();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [setError]);
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -128,11 +155,11 @@ const SignIn = () => {
 
         <TouchableOpacity
           onPress={handleGoogleSignIn}
-          disabled={loading}
+          disabled={loading || !request}
           className="mb-4 flex-row items-center justify-center rounded-lg border py-3"
           style={{ backgroundColor: theme.colors.card, borderColor: theme.colors.accent }}
         >
-          {loading ? (
+          {loading || !request ? (
             <ActivityIndicator color={theme.colors.accent} />
           ) : (
             <>

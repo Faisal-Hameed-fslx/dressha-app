@@ -13,8 +13,16 @@ export const discovery = {
   revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
 };
 const baseUrl = localHost;
-const GOOGLE_WEB_CLIENT_ID = '304070534524-eip1272a6h34ag0es5j98ujcvtj8dfvk.apps.googleusercontent.com';
-const GOOGLE_ANDROID_CLIENT_ID = '304070534524-4vkn9jee3c5maodr229bqtmeug0squ62.apps.googleusercontent.com';
+
+export type GoogleAuthClientIds = {
+  webClientId: string | null;
+  androidClientId: string | null;
+};
+
+export const fetchGoogleAuthClientIds = async (): Promise<GoogleAuthClientIds> => {
+  const response = await axios.get(`${baseUrl}/auth/google/config`);
+  return response.data as GoogleAuthClientIds;
+};
 
 export const initGoogleSignIn = async () => {
   // No-op for expo-auth-session; WebBrowser.maybeCompleteAuthSession already handled.
@@ -43,14 +51,13 @@ export const buildGoogleProxyStartUrl = ({
   return `${proxyBaseUrl}/start?${queryString.toString()}`;
 };
 
-export const buildGoogleAuthRequestConfig = (useProxy: boolean, projectNameForProxy?: string) => {
-  const webClientId = GOOGLE_WEB_CLIENT_ID;
-  const androidClientId = GOOGLE_ANDROID_CLIENT_ID;
-
-
-  if (!webClientId) {
-    throw new Error('Missing Google web client ID in code');
-  }
+export const buildGoogleAuthRequestConfig = (
+  useProxy: boolean,
+  projectNameForProxy?: string,
+  clientIds?: GoogleAuthClientIds | null,
+) : AuthSession.AuthRequestConfig | null => {
+  const webClientId = clientIds?.webClientId || '';
+  const androidClientId = clientIds?.androidClientId || '';
 
   const nativeSchemeRaw =
     Constants.expoConfig?.android?.package || Constants.expoConfig?.scheme || 'com.malikawang.dressha';
@@ -61,6 +68,10 @@ export const buildGoogleAuthRequestConfig = (useProxy: boolean, projectNameForPr
   const proxyRedirectUri = `https://auth.expo.io/${proxyProjectName}`;
   const hasAndroidClientId = !!androidClientId && androidClientId !== 'your-new-android-client-id';
 
+  if (useProxy && !webClientId) {
+    return null;
+  }
+
 
   const redirectUri = useProxy
     ? proxyRedirectUri
@@ -68,14 +79,14 @@ export const buildGoogleAuthRequestConfig = (useProxy: boolean, projectNameForPr
 
   if (!useProxy && Platform.OS === 'android' && !hasAndroidClientId) {
     throw new Error(
-      'Missing Google Android client ID in code. Native Android sign-in requires an Android OAuth client ID in Google Cloud Console.'
+      'Missing Google Android client ID on the backend. Native Android sign-in requires an Android OAuth client ID in Google Cloud Console.'
     );
   }
 
   const clientId = useProxy ? webClientId : Platform.OS === 'android' ? androidClientId : webClientId;
 
-  if (useProxy && !webClientId) {
-    throw new Error('Google auth config error: missing Web client ID for Expo Go (useProxy).');
+  if (!useProxy && Platform.OS !== 'android' && !webClientId) {
+    throw new Error('Missing Google web client ID on the backend. Native iOS/web sign-in requires a Web OAuth client ID in Google Cloud Console.');
   }
 
   // Native Android builds must use an Android client ID; do not silently fall back to web.

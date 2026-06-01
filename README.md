@@ -55,12 +55,16 @@ Cloudinary_API_KEY=your_cloudinary_api_key
 Cloudinary_API_Secret=your_cloudinary_api_secret
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_WEB_CLIENT_ID=your_google_web_client_id
+GOOGLE_ANDROID_CLIENT_ID=your_google_android_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 OPENAI_API_KEY=optional_if_used
 WEATHER_API_KEY=optional_openweathermap_key
 STORY_WEBHOOK_URL=optional
 STORY_WEBHOOK_KEY=optional
 PUSH_PROVIDER=expo
 ```
+
+The frontend Google sign-in screens read the client IDs from the backend config endpoint, so keep those IDs in `backend/.env` and you do not need a separate frontend `.env` for them.
 
 1. Start the backend:
 
@@ -90,7 +94,7 @@ cd frontend
 npm install
 ```
 
-The frontend does not require a separate `.env` file in the current setup. It uses `frontend/store/run.js` for the backend URL, so that file controls the API host unless you change it later.
+The frontend does not require a separate `.env` file in the current setup. It uses `frontend/store/run.js` for the backend URL, so that file controls the API host unless you change it later. Make sure the backend URL is correct there. In run.js change const localHost = 'http://10.244.124.128:3000'; to const localHost = 'http://localhost:3000'; or your backend's actual URL.
 
 1. Start Expo:
 
@@ -332,4 +336,4 @@ Check:
 
 ## License
 
-No license file was provided in the project.
+For license see `LICENSE` file provided in the project.
