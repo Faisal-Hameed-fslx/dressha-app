@@ -6,7 +6,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import localHost from '../store/run';
 import { useTheme } from '../theme/ThemeProvider';
-
+import useAuthStore from '../store/auth';
 
 type RouteParams = {
   userId?: string;
@@ -30,11 +30,18 @@ const PublicUserProfileScreen: React.FC = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [followBusy, setFollowBusy] = useState(false);
+  
+  const { user } = useAuthStore();
 
   useEffect(() => {
     const load = async () => {
       if (!userId) {
-        setProfile({ username: fallbackUsername, profilePicture: typeof fallbackProfilePic === 'string' ? fallbackProfilePic : undefined, followersCount: 0, isFollowed: false });
+        setProfile({ 
+          username: fallbackUsername, 
+          profilePicture: typeof fallbackProfilePic === 'string' ? fallbackProfilePic : undefined, 
+          followersCount: 0, 
+          isFollowed: false 
+        });
         setPosts([]);
         setLoading(false);
         return;
@@ -56,7 +63,12 @@ const PublicUserProfileScreen: React.FC = () => {
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error('load public profile', errorMessage);
         }
-        setProfile({ username: fallbackUsername, profilePicture: typeof fallbackProfilePic === 'string' ? fallbackProfilePic : undefined, followersCount: 0, isFollowed: false });
+        setProfile({ 
+          username: fallbackUsername, 
+          profilePicture: typeof fallbackProfilePic === 'string' ? fallbackProfilePic : undefined, 
+          followersCount: 0, 
+          isFollowed: false 
+        });
         setPosts([]);
       } finally {
         setLoading(false);
@@ -71,7 +83,12 @@ const PublicUserProfileScreen: React.FC = () => {
     const nextFollowed = !profile?.isFollowed;
     const previous = profile;
     setFollowBusy(true);
-    setProfile((current) => current ? { ...current, isFollowed: nextFollowed, followersCount: Math.max(0, (current.followersCount || 0) + (nextFollowed ? 1 : -1)) } : current);
+    setProfile((current) => current ? { 
+      ...current, 
+      isFollowed: nextFollowed, 
+      followersCount: Math.max(0, (current.followersCount || 0) + (nextFollowed ? 1 : -1)) 
+    } : current);
+    
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -80,8 +97,14 @@ const PublicUserProfileScreen: React.FC = () => {
         return;
       }
       const endpoint = profile?.isFollowed ? 'unfollow' : 'follow';
-      const resp = await axios.post(`${localHost}/user/${userId}/${endpoint}`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      setProfile((current) => current ? { ...current, isFollowed: !!resp.data.following, followersCount: resp.data.followersCount ?? current.followersCount } : current);
+      const resp = await axios.post(`${localHost}/user/${userId}/${endpoint}`, {}, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      setProfile((current) => current ? { 
+        ...current, 
+        isFollowed: !!resp.data.following, 
+        followersCount: resp.data.followersCount ?? current.followersCount 
+      } : current);
     } catch (error) {
       setProfile(previous);
       const status = isAxiosError(error) ? error.response?.status : null;
@@ -106,7 +129,7 @@ const PublicUserProfileScreen: React.FC = () => {
       likedByMe: post.likedByMe,
     });
   };
-  const { user } = useAuthStore();
+
   const profilePic = user?.profilePicture || fallbackProfilePic;
   const username = user?.username || fallbackUsername;
   const displayName = user?.profileName || username;
@@ -126,13 +149,19 @@ const PublicUserProfileScreen: React.FC = () => {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 28 }}>
           <View style={[styles.hero, { backgroundColor: colors.card, borderColor: colors.muted + '22' }]}>
-            <Image source={typeof profilePic === 'string' ? { uri: profilePic } : profilePic} style={styles.avatar} />
+            <Image 
+              source={typeof profilePic === 'string' ? { uri: profilePic } : profilePic} 
+              style={styles.avatar} 
+            />
             <Text style={[styles.name, { color: colors.primary }]}>{displayName}</Text>
             <Text style={[styles.handle, { color: colors.muted }]}>{'@' + username.toLowerCase()}</Text>
             <Text style={[styles.followers, { color: colors.muted }]}>{profile?.followersCount ?? 0} followers</Text>
 
             <View style={styles.actionsRow}>
-              <Pressable onPress={toggleFollow} style={[styles.primaryBtn, { backgroundColor: profile?.isFollowed ? colors.accent : colors.primary }]}>
+              <Pressable 
+                onPress={toggleFollow} 
+                style={[styles.primaryBtn, { backgroundColor: profile?.isFollowed ? colors.accent : colors.primary }]}
+              >
                 <Text style={styles.primaryBtnText}>{profile?.isFollowed ? 'Following' : 'Follow'}</Text>
               </Pressable>
             </View>
@@ -147,11 +176,19 @@ const PublicUserProfileScreen: React.FC = () => {
                 {posts.map((post, index) => {
                   const cover = post?.items?.[0]?.image || post?.image;
                   return (
-                    <Pressable key={post._id || index} style={[styles.gridCard, { backgroundColor: colors.card, borderColor: colors.muted + '22' }]} onPress={() => openPost(post)}>
+                    <Pressable 
+                      key={post._id || index} 
+                      style={[styles.gridCard, { backgroundColor: colors.card, borderColor: colors.muted + '22' }]} 
+                      onPress={() => openPost(post)}
+                    >
                       <Image source={{ uri: cover }} style={styles.gridImage} resizeMode="cover" />
                       <View style={styles.gridMeta}>
-                        <Text style={[styles.gridCaption, { color: colors.primary }]} numberOfLines={1}>{post.caption || 'Outfit post'}</Text>
-                        <Text style={[styles.gridSub, { color: colors.muted }]}>{post.likesCount || 0} likes · {post.commentsCount || 0} comments</Text>
+                        <Text style={[styles.gridCaption, { color: colors.primary }]} numberOfLines={1}>
+                          {post.caption || 'Outfit post'}
+                        </Text>
+                        <Text style={[styles.gridSub, { color: colors.muted }]}>
+                          {post.likesCount || 0} likes · {post.commentsCount || 0} comments
+                        </Text>
                       </View>
                     </Pressable>
                   );
@@ -166,29 +203,98 @@ const PublicUserProfileScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  backText: { fontSize: 16, fontWeight: '700' },
-  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  hero: { marginHorizontal: 16, marginTop: 8, borderRadius: 24, padding: 18, alignItems: 'center', borderWidth: 1 },
-  avatar: { width: 96, height: 96, borderRadius: 48, marginBottom: 12 },
-  name: { fontSize: 22, fontWeight: '900' },
-  handle: { marginTop: 2, fontSize: 13 },
-  followers: { marginTop: 8, fontSize: 13, fontWeight: '600' },
-  actionsRow: { marginTop: 14, flexDirection: 'row', gap: 10 },
-  primaryBtn: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: 14, minWidth: 120, alignItems: 'center' },
-  primaryBtnText: { color: '#fff', fontWeight: '800' },
-  sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  gridCard: { width: '48%', borderRadius: 18, overflow: 'hidden', borderWidth: 1 },
-  gridImage: { width: '100%', height: 200, backgroundColor: '#eee' },
-  gridMeta: { padding: 10 },
-  gridCaption: { fontSize: 13, fontWeight: '700' },
-  gridSub: { marginTop: 4, fontSize: 11 },
+  container: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  backText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hero: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 24,
+    padding: 18,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    marginBottom: 12,
+  },
+  name: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  handle: {
+    marginTop: 2,
+    fontSize: 13,
+  },
+  followers: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  actionsRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  primaryBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 14,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  primaryBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  gridCard: {
+    width: '48%',
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  gridImage: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#eee',
+  },
+  gridMeta: {
+    padding: 10,
+  },
+  gridCaption: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  gridSub: {
+    marginTop: 4,
+    fontSize: 11,
+  },
 });
 
 export default PublicUserProfileScreen;
-
-function useAuthStore(): { user: any; } {
-  throw new Error('Function not implemented.');
-}

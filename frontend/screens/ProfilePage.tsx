@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Image, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +22,9 @@ const ProfilePage = () => {
   const [outfits, setOutfits] = useState([]);
   const [userImages, setUserImages] = useState<any[]>([]);
   const [loading, setloading] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const profileNameFromUser = user?.profileName || '';
 
   // Safe access to user properties
@@ -98,7 +101,11 @@ const ProfilePage = () => {
   useFocusEffect(
     useCallback(() => {
       fetchUserImages();
-      return () => {};
+      return () => {
+        // Reset selection when leaving the screen
+        setIsSelectionMode(false);
+        setSelectedImages(new Set());
+      };
     }, [fetchUserImages])
   );
 
@@ -106,6 +113,65 @@ const ProfilePage = () => {
     const id = item?._id || item?.id || item?.publicId;
     if (!id) return;
     setUserImages((prev) => prev.filter((img: any) => (img?._id || img?.id || img?.publicId) !== id));
+  };
+
+  const toggleSelection = (item: any) => {
+    const publicId = item.publicId || item._id;
+    if (!publicId) return;
+    
+    const newSelection = new Set(selectedImages);
+    if (newSelection.has(publicId)) {
+      newSelection.delete(publicId);
+    } else {
+      newSelection.add(publicId);
+    }
+    setSelectedImages(newSelection);
+    
+    // Turn on selection mode if any item is selected
+    if (newSelection.size > 0) {
+      setIsSelectionMode(true);
+    } else {
+      setIsSelectionMode(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedImages.size === 0) return;
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!token) return;
+    
+    try {
+      const deletePromises = Array.from(selectedImages).map(async (publicId) => {
+        await axios.delete(`${localHost}/api/images/${encodeURIComponent(publicId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      });
+      
+      await Promise.all(deletePromises);
+      
+      // Remove deleted images from local state
+      setUserImages((prev) => prev.filter((img) => !selectedImages.has(img.publicId)));
+      setSelectedImages(new Set());
+      setIsSelectionMode(false);
+      Alert.alert('Success', `${selectedImages.size} image(s) deleted successfully`);
+    } catch (error) {
+      console.error('Delete error:', error);
+      Alert.alert('Error', 'Failed to delete some images');
+    } finally {
+      setDeleteModalVisible(false);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteModalVisible(false);
+  };
+
+  const exitSelectionMode = () => {
+    setIsSelectionMode(false);
+    setSelectedImages(new Set());
   };
 
   const filteredClothes =
@@ -148,14 +214,44 @@ const ProfilePage = () => {
     return items.sort((a: any, b: any) => order.indexOf(normalizeClothingType(a.type)) - order.indexOf(normalizeClothingType(b.type)));
   };
 
+  // Determine if we're showing user images or sample images
+  const showUserImages = filteredUserImages.length > 0;
+  const displayItems = showUserImages ? filteredUserImages : filteredClothes;
+  const isSampleMode = !showUserImages;
+
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: theme.colors.background }}>
+      {/* Selection Mode Header */}
+      {isSelectionMode && (
+        <View className="flex-row items-center justify-between px-4 py-3 border-b" style={{ backgroundColor: theme.colors.card, borderColor: hexToRgba(theme.colors.primary, 0.08) }}>
+          <View className="flex-row items-center">
+            <TouchableOpacity onPress={exitSelectionMode} className="mr-3">
+              <Ionicons name="close" size={24} color={theme.colors.primary} />
+            </TouchableOpacity>
+            <Text style={{ color: theme.colors.primary, fontSize: 16, fontWeight: '600' }}>
+              {selectedImages.size} selected
+            </Text>
+          </View>
+          <TouchableOpacity 
+            onPress={handleDeleteSelected}
+            style={{ backgroundColor: '#E76F51', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
         <View className="flex-row items-center justify-between px-4 pt-2">
           <Text className="font-display text-3xl tracking-luxury" style={{ color: theme.colors.primary }}>
             {profileNameFromUser || username}
           </Text>
           <View className="flex-row gap-3">
+            {!isSelectionMode && (
+              <TouchableOpacity onPress={() => setIsSelectionMode(true)}>
+                <Ionicons name="checkbox-outline" color={theme.colors.accent} size={28} />
+              </TouchableOpacity>
+            )}
             <Ionicons name="menu-outline" color={theme.colors.muted} size={32} onPress={() => navigation.navigate('SettingPage')} />
           </View>
         </View>
@@ -199,60 +295,82 @@ const ProfilePage = () => {
           ))}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, paddingLeft: 8 }}>
-          {[t('categoryAll'), t('categoryTops'), t('categoryBottoms'), t('categoryOuterwear'), t('categoryShoes')].map((category) => (
-            <TouchableOpacity
-              key={category}
-              onPress={() => setActiveCategory(category)}
-              style={{ marginRight: 12, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: activeCategory === category ? theme.colors.accent : theme.colors.card, borderColor: hexToRgba(theme.colors.primary, 0.08) }}
-            >
-              <Text style={{ color: activeCategory === category ? theme.colors.background : theme.colors.primary, fontSize: 14, fontWeight: '600' }}>{category}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
         {activeTab === 'Clothes' && (
-          <View className="px-4">
-            {filteredUserImages.length === 0 && filteredClothes.length === 0 ? (
-              <Text style={{ marginTop: 24, textAlign: 'center', color: theme.colors.muted }}>{t('noClothesInCategory')}</Text>
-            ) : (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {(filteredUserImages.length > 0 ? filteredUserImages : filteredClothes).map((item: any, index: number) => (
-                  <View key={`${item._id || item.id || index}-${index}`} className="w-1/3 p-1.5">
-                    <View
-                      className="rounded-lg shadow-sm border overflow-hidden"
-                      style={{
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.1,
-                        shadowRadius: 4,
-                        elevation: 3,
-                        backgroundColor: theme.colors.card,
-                        borderColor: hexToRgba(theme.colors.primary, 0.08),
-                      }}
-                    >
-                      <Image
-                        style={{ height: 128, width: '100%', backgroundColor: theme.colors.card }}
-                        source={{ uri: item.url || item.image }}
-                        resizeMode="contain"
-                        onError={() => handleImageLoadError(item)}
-                      />
-                      <View className="p-2">
-                        <Text style={{ color: theme.colors.muted, fontSize: 14, fontWeight: '600', textTransform: 'capitalize' }}>
-                          {toDisplayClothingType(item?.itemType || item?.type || 'other')} ({item?.gender || 'unisex'})
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, paddingLeft: 8 }}>
+              {[t('categoryAll'), t('categoryTops'), t('categoryBottoms'), t('categoryOuterwear'), t('categoryShoes')].map((category) => (
+                <TouchableOpacity
+                  key={category}
+                  onPress={() => setActiveCategory(category)}
+                  style={{ marginRight: 12, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: activeCategory === category ? theme.colors.accent : theme.colors.card, borderColor: hexToRgba(theme.colors.primary, 0.08) }}
+                >
+                  <Text style={{ color: activeCategory === category ? theme.colors.background : theme.colors.primary, fontSize: 14, fontWeight: '600' }}>{category}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View className="px-4 mt-4">
+              {displayItems.length === 0 ? (
+                <Text style={{ marginTop: 24, textAlign: 'center', color: theme.colors.muted }}>{t('noClothesInCategory')}</Text>
+              ) : (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+                  {displayItems.map((item: any, index: number) => {
+                    const isSelected = selectedImages.has(item.publicId || item._id);
+                    return (
+                      <TouchableOpacity
+                        key={`${item._id || item.id || index}-${index}`}
+                        onPress={() => isSelectionMode && toggleSelection(item)}
+                        activeOpacity={0.7}
+                        style={{ width: '31.33%', margin: '1%' }}
+                      >
+                        <View
+                          style={{
+                            aspectRatio: 1,
+                            borderRadius: 12,
+                            overflow: 'hidden',
+                            backgroundColor: theme.colors.card,
+                            borderWidth: isSelected ? 2 : 1,
+                            borderColor: isSelected ? theme.colors.accent : hexToRgba(theme.colors.primary, 0.08),
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 4,
+                            elevation: 3,
+                          }}
+                        >
+                          <Image
+                            style={{ width: '100%', height: '100%' }}
+                            source={{ uri: item.url || item.image }}
+                            resizeMode="cover"
+                            onError={() => !isSampleMode && handleImageLoadError(item)}
+                          />
+                          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 8, backgroundColor: 'rgba(0,0,0,0.6)' }}>
+                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600', textTransform: 'capitalize', textAlign: 'center' }}>
+                              {toDisplayClothingType(item?.itemType || item?.type || 'other')} ({item?.gender || 'unisex'})
+                            </Text>
+                          </View>
+                          {isSelectionMode && !isSampleMode && (
+                            <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: isSelected ? theme.colors.accent : 'rgba(0,0,0,0.5)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+                              {isSelected ? (
+                                <Ionicons name="checkmark" size={16} color="#fff" />
+                              ) : (
+                                <Ionicons name="square-outline" size={16} color="#fff" />
+                              )}
+                            </View>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          </>
         )}
 
         {activeTab === 'Outfits' && (
-          <View style={{ paddingHorizontal: 16 }}>
-              {loading ? (
+          <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+            {loading ? (
               <ActivityIndicator size={'large'} color={theme.colors.accent} />
             ) : outfits.length === 0 ? (
               <Text style={{ textAlign: 'center', marginTop: 16, color: theme.colors.muted }}>{t('noOutfitsSaved')}</Text>
@@ -310,6 +428,40 @@ const ProfilePage = () => {
           </View>
         )}
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelDelete}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: theme.colors.card, borderRadius: 20, padding: 20, width: '80%', alignItems: 'center' }}>
+            <Ionicons name="trash-outline" size={50} color={theme.colors.accent} style={{ marginBottom: 15 }} />
+            <Text style={{ color: theme.colors.primary, fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>
+              Delete {selectedImages.size} Item(s)?
+            </Text>
+            <Text style={{ color: theme.colors.muted, textAlign: 'center', marginBottom: 20 }}>
+              Are you sure you want to delete {selectedImages.size} clothing item(s)? This action cannot be undone.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                onPress={cancelDelete}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: hexToRgba(theme.colors.primary, 0.1), alignItems: 'center' }}
+              >
+                <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={confirmDelete}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#E76F51', alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
