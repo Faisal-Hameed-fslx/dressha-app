@@ -12,6 +12,7 @@ import { useLanguage } from '../providers/LanguageProvider';
 import { buildGoogleAuthRequestConfig, buildGoogleProxyStartUrl, discovery, exchangeGoogleCode, fetchGoogleAuthClientIds, GoogleAuthClientIds } from '../services/googleAuth';
 import useAuthStore from '../store/auth';
 import { useTheme } from '../theme/ThemeProvider';
+import localHost from '../store/run';
 
 const SignIn = () => {
   const navigation = useNavigation();
@@ -25,24 +26,52 @@ const SignIn = () => {
   const owner = Constants.expoConfig?.owner;
   const slug = Constants.expoConfig?.slug;
   const projectNameForProxy = owner && slug ? `@${owner}/${slug}` : undefined;
+
+  // ✅ Build config (may be null initially, but that's fine)
+  const authConfig = googleClientIds 
+    ? buildGoogleAuthRequestConfig(useProxy, projectNameForProxy, googleClientIds) 
+    : null;
+
+  // ✅ Always call the hook at the top level - use a fallback config if needed
+  // A default config with empty values - the hook will update when the real config becomes available
+  const defaultConfig: AuthSession.AuthRequestConfig = {
+    clientId: '',
+    redirectUri: AuthSession.makeRedirectUri({ useProxy }),
+    responseType: AuthSession.ResponseType.Code,
+    scopes: ['openid', 'profile', 'email'],
+    usePKCE: true,
+  };
+
+  // ✅ This hook is ALWAYS called, never conditionally
   const [request, , promptAsync] = AuthSession.useAuthRequest(
-    buildGoogleAuthRequestConfig(useProxy, projectNameForProxy, googleClientIds),
+    authConfig || defaultConfig,
     discovery
   );
+
   const appReturnUrl = AuthSession.getDefaultReturnUrl();
-  // For native builds: use request.redirectUri. For Expo Go: use proxy URL
-  const redirectUri = useProxy && projectNameForProxy ? `https://auth.expo.io/${projectNameForProxy}` : request?.redirectUri;
+  const redirectUri = useProxy && projectNameForProxy 
+    ? `https://auth.expo.io/${projectNameForProxy}` 
+    : request?.redirectUri;
 
   useEffect(() => {
     let isMounted = true;
 
     const loadGoogleClientIds = async () => {
       try {
+        console.log('📡 Fetching Google client IDs from:', `${localHost}/auth/google/config`);
         const ids = await fetchGoogleAuthClientIds();
+        console.log('✅ Received client IDs:', JSON.stringify(ids, null, 2));
+        
         if (isMounted) {
           setGoogleClientIds(ids);
+          if (!ids.androidClientId) {
+            console.warn('⚠️ Android client ID is missing from backend response!');
+          } else {
+            console.log('✅ Android client ID is present:', ids.androidClientId);
+          }
         }
       } catch (error: any) {
+        console.error('❌ Failed to load Google config:', error?.message);
         if (isMounted) {
           setError(error?.message || 'Failed to load Google auth config');
         }
@@ -65,24 +94,25 @@ const SignIn = () => {
     try {
       clearError();
       await login(email, password);
+      navigation.navigate('Tabs' as never);
     } catch (error: any) {
       setError(error.message);
     }
   };
 
   const handleGoogleSignIn = async () => {
+    if (!request || !promptAsync) {
+      setError('Google Sign-In is initializing. Please try again.');
+      return;
+    }
+    
     try {
       clearError();
-      if (!request) {
-        throw new Error('Google auth request is still loading');
-      }
-
+      
       const promptOptions: any = { useProxy };
       if (useProxy && projectNameForProxy) {
         promptOptions.projectNameForProxy = projectNameForProxy;
       }
-
-      // Debug logs removed
 
       let promptRequestUrl: string | undefined;
       if (useProxy && projectNameForProxy && request.url) {
@@ -93,8 +123,6 @@ const SignIn = () => {
         });
         (request as any).redirectUri = appReturnUrl;
       }
-
-      // Debug logs removed
 
       const result = promptRequestUrl ? await promptAsync({ url: promptRequestUrl }) : await promptAsync();
 
@@ -124,6 +152,8 @@ const SignIn = () => {
     }
   };
 
+  // Check if Google button should be enabled (has a valid clientId)
+  const isGoogleEnabled = !!(request && request.clientId && request.clientId.length > 0);
 
   return (
     <View className="flex-1 justify-center p-4" style={{ backgroundColor: theme.colors.background }}>
@@ -155,16 +185,16 @@ const SignIn = () => {
 
         <TouchableOpacity
           onPress={handleGoogleSignIn}
-          disabled={loading || !request}
+          disabled={loading || !isGoogleEnabled}
           className="mb-4 flex-row items-center justify-center rounded-lg border py-3"
           style={{ backgroundColor: theme.colors.card, borderColor: theme.colors.accent }}
         >
-          {loading || !request ? (
+          {(loading || !isGoogleEnabled) ? (
             <ActivityIndicator color={theme.colors.accent} />
           ) : (
             <>
               <Ionicons name="logo-google" size={24} color={theme.colors.accent} />
-              <Text className="font-semibold" style={{ color: theme.colors.primary }}>{t('signInWithGoogle')}</Text>
+              <Text className="font-semibold ml-2" style={{ color: theme.colors.primary }}>{t('signInWithGoogle')}</Text>
             </>
           )}
         </TouchableOpacity>

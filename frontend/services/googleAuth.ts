@@ -20,7 +20,9 @@ export type GoogleAuthClientIds = {
 };
 
 export const fetchGoogleAuthClientIds = async (): Promise<GoogleAuthClientIds> => {
+  console.log('📡 Fetching Google client IDs from:', `${baseUrl}/auth/google/config`);
   const response = await axios.get(`${baseUrl}/auth/google/config`);
+  console.log('✅ Google config response:', response.data);
   return response.data as GoogleAuthClientIds;
 };
 
@@ -55,7 +57,16 @@ export const buildGoogleAuthRequestConfig = (
   useProxy: boolean,
   projectNameForProxy?: string,
   clientIds?: GoogleAuthClientIds | null,
-) : AuthSession.AuthRequestConfig | null => {
+): AuthSession.AuthRequestConfig | null => {
+  console.log('🔧 buildGoogleAuthRequestConfig called with:', {
+    useProxy,
+    projectNameForProxy,
+    clientIds: clientIds ? {
+      webClientId: clientIds.webClientId ? `${clientIds.webClientId.substring(0, 20)}...` : null,
+      androidClientId: clientIds.androidClientId ? `${clientIds.androidClientId.substring(0, 20)}...` : null,
+    } : null,
+  });
+
   const webClientId = clientIds?.webClientId || '';
   const androidClientId = clientIds?.androidClientId || '';
 
@@ -66,39 +77,55 @@ export const buildGoogleAuthRequestConfig = (
 
   const proxyProjectName = projectNameForProxy ?? '@malikawang/dressha-app';
   const proxyRedirectUri = `https://auth.expo.io/${proxyProjectName}`;
-  const hasAndroidClientId = !!androidClientId && androidClientId !== 'your-new-android-client-id';
+  
+  // FIXED: Better check for valid Android client ID
+  const hasAndroidClientId = !!(androidClientId && 
+    androidClientId !== 'your-new-android-client-id' && 
+    androidClientId.length > 10);
+
+  console.log('🔧 Android client ID check:', {
+    androidClientId: androidClientId ? `${androidClientId.substring(0, 20)}...` : 'missing',
+    hasAndroidClientId,
+    useProxy,
+    platform: Platform.OS,
+  });
 
   if (useProxy && !webClientId) {
+    console.log('❌ Returning null: useProxy true but no webClientId');
     return null;
   }
 
-
   const redirectUri = useProxy
     ? proxyRedirectUri
-    : AuthSession.makeRedirectUri({ native: nativeRedirectUri, scheme: nativeScheme as string } as any);
+    : AuthSession.makeRedirectUri({ native: nativeRedirectUri, scheme: nativeScheme as string });
 
+  // FIXED: For native Android builds, if we don't have Android client ID, return null instead of throwing
+  // This will disable Google Sign-In button gracefully
   if (!useProxy && Platform.OS === 'android' && !hasAndroidClientId) {
-    throw new Error(
-      'Missing Google Android client ID on the backend. Native Android sign-in requires an Android OAuth client ID in Google Cloud Console.'
-    );
+    console.warn('⚠️ Missing Google Android client ID - Google Sign-In will be disabled for native Android');
+    return null; // Return null instead of throwing error
   }
 
   const clientId = useProxy ? webClientId : Platform.OS === 'android' ? androidClientId : webClientId;
 
   if (!useProxy && Platform.OS !== 'android' && !webClientId) {
-    throw new Error('Missing Google web client ID on the backend. Native iOS/web sign-in requires a Web OAuth client ID in Google Cloud Console.');
+    console.warn('⚠️ Missing Google web client ID - Google Sign-In will be disabled');
+    return null;
   }
 
-  // Native Android builds must use an Android client ID; do not silently fall back to web.
+  if (!clientId) {
+    console.warn('⚠️ No valid client ID found - Google Sign-In will be disabled');
+    return null;
+  }
 
-
+  console.log('✅ Returning Google auth config with clientId:', `${clientId.substring(0, 20)}...`);
+  
   return {
     clientId,
     redirectUri,
     responseType: AuthSession.ResponseType.Code,
     scopes: ['openid', 'profile', 'email'],
     usePKCE: true,
-    shouldAutoExchangeCode: false,
   };
 };
 

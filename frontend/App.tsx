@@ -1,8 +1,7 @@
-
 import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -14,14 +13,51 @@ import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 
 WebBrowser.maybeCompleteAuthSession();
 
+// Configure notifications - FIXED
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,    // ✅ Use this instead of shouldShowAlert
+    shouldShowList: true,      // ✅ Required property
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'Default',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#FF231F7C',
+  }).catch(() => {});
+}
 
 export default function App() {
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        await useAuthStore.getState().initalizeAuth();
+      } catch (error) {
+        console.error('Auth init error:', error);
+      } finally {
+        setIsReady(true);
+      }
+    };
+    initialize();
+  }, []);
+
+  if (!isReady) {
+    return null;
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <PaperProvider>
         <ThemeProvider>
           <LanguageProvider>
-            <AppShell />
+            <AppContent />
           </LanguageProvider>
         </ThemeProvider>
       </PaperProvider>
@@ -29,8 +65,9 @@ export default function App() {
   );
 }
 
-function AppShell() {
+function AppContent() {
   const { theme } = useTheme();
+
   const navigationTheme = theme.name === 'scandi-dark'
     ? {
         ...DarkTheme,
@@ -61,36 +98,4 @@ function AppShell() {
       <RootNavigator />
     </NavigationContainer>
   );
-}
-
-// Initialize auth on app start so token/user are available before screens mount
-function InitAuth() {
-  useEffect(() => {
-    try {
-      useAuthStore.getState().initalizeAuth();
-    } catch (e) {
-      console.warn('Auth init failed', e);
-    }
-  }, []);
-  return null;
-}
-
-// Configure notification handler and Android channel
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
-
-// Create Android channel if needed (best-effort)
-if (Platform.OS === 'android') {
-  Notifications.setNotificationChannelAsync('default', {
-    name: 'Default',
-    importance: Notifications.AndroidImportance.DEFAULT,
-    vibrationPattern: [0, 250, 250, 250],
-    lightColor: '#FF231F7C',
-  }).catch(() => {});
 }

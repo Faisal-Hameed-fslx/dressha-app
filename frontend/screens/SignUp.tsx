@@ -32,10 +32,10 @@ const SignUp = () => {
   const { signup, setAuthFromServer, loading, error, setError, clearError } = useAuthStore();
   const useProxy = Constants.appOwnership === 'expo';
   const [googleClientIds, setGoogleClientIds] = useState<GoogleAuthClientIds | null>(null);
-  const [request, , promptAsync] = AuthSession.useAuthRequest(
-    buildGoogleAuthRequestConfig(useProxy, undefined, googleClientIds),
-    discovery
-  );
+const [request, , promptAsync] = AuthSession.useAuthRequest(
+  buildGoogleAuthRequestConfig(useProxy, undefined, googleClientIds) as AuthSession.AuthRequestConfig,
+  discovery
+);
 
   useEffect(() => {
     let isMounted = true;
