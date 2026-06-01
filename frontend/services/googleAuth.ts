@@ -13,6 +13,8 @@ export const discovery = {
   revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
 };
 const baseUrl = localHost;
+const GOOGLE_WEB_CLIENT_ID = '304070534524-eip1272a6h34ag0es5j98ujcvtj8dfvk.apps.googleusercontent.com';
+const GOOGLE_ANDROID_CLIENT_ID = '304070534524-4vkn9jee3c5maodr229bqtmeug0squ62.apps.googleusercontent.com';
 
 export const initGoogleSignIn = async () => {
   // No-op for expo-auth-session; WebBrowser.maybeCompleteAuthSession already handled.
@@ -42,12 +44,12 @@ export const buildGoogleProxyStartUrl = ({
 };
 
 export const buildGoogleAuthRequestConfig = (useProxy: boolean, projectNameForProxy?: string) => {
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+  const webClientId = GOOGLE_WEB_CLIENT_ID;
+  const androidClientId = GOOGLE_ANDROID_CLIENT_ID;
 
 
   if (!webClientId) {
-    throw new Error('Missing Google web client ID in env');
+    throw new Error('Missing Google web client ID in code');
   }
 
   const nativeSchemeRaw =
@@ -66,14 +68,14 @@ export const buildGoogleAuthRequestConfig = (useProxy: boolean, projectNameForPr
 
   if (!useProxy && Platform.OS === 'android' && !hasAndroidClientId) {
     throw new Error(
-      'Missing EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID. Native Android sign-in requires an Android OAuth client ID in Google Cloud Console.'
+      'Missing Google Android client ID in code. Native Android sign-in requires an Android OAuth client ID in Google Cloud Console.'
     );
   }
 
   const clientId = useProxy ? webClientId : Platform.OS === 'android' ? androidClientId : webClientId;
 
   if (useProxy && !webClientId) {
-    throw new Error('Google auth config error: missing Web client ID for Expo Go (useProxy). Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.');
+    throw new Error('Google auth config error: missing Web client ID for Expo Go (useProxy).');
   }
 
   // Native Android builds must use an Android client ID; do not silently fall back to web.
