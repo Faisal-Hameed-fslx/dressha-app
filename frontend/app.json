@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Dressha",
+    "slug": "dressha-app",
+    "scheme": "com.malikawang.dressha",
+    "version": "1.0.0",
+    "owner": "malikawang",
+    "sdkVersion": "54.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "userInterfaceStyle": "automatic"
+    },
+    "android": {
+      "package": "com.malikawang.dressha",
+      "softwareKeyboardLayoutMode": "pan",
+      "userInterfaceStyle": "automatic",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/new-adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/splash.png"
+    },
+    "experiments": {
+      "tsconfigPaths": true
+    },
+"plugins": [
+  "./plugins/withOnnxruntimeReactNative",
+  [
+    "expo-image-picker",
+    {
+      "photosPermission": "The app accesses your photos to let you share them with your friends."
+    }
+  ],
+  [
+    "expo-build-properties",
+    {
+      "android": {
+        "compileSdkVersion": 36,
+        "targetSdkVersion": 36,
+        "buildToolsVersion": "36.0.0"
+      }
+    }
+  ],
+  "expo-font",
+  "expo-web-browser"
+],
+    "extra": {
+      "eas": {
+        "projectId": "11a742a9-8c4d-445a-b967-a816a3609692"
+      }
+    }
+  }
+}

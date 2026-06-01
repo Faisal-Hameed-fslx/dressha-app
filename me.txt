@@ -1,0 +1,97 @@
+ONNX Runtime React Native Integration - Resolution Steps
+=========================================================
+
+PROBLEM:
+--------
+App showed "WARN warmupMobileModels failed [Error: onnxruntime-react-native native module is not registered in this Android build. Registered native modules: 0. Sample: none.]"
+
+Despite successful Gradle build, `NativeModules.Onnxruntime` was null at runtime.
+
+ROOT CAUSES IDENTIFIED:
+-----------------------
+1. Manual OnnxruntimePackage registration was missing from MainApplication.kt getPackages()
+2. The Expo prebuild process was not injecting the package registration in the MainApplication
+3. Architecture list (armeabi-v7a,arm64-v8a,x86,x86_64) included 32-bit ARM which crashed C++ compiler
+4. New architecture CMake regeneration was failing due to stale codegen paths
+5. App binary was stale or not properly reinstalled after native changes
+
+SOLUTION STEPS (In Order):
+--------------------------
+
+Step 1: Restore Manual Native Package Registration
+   File: frontend/android/app/src/main/java/com/malikawang/dressha/MainApplication.kt
+   - Import: import ai.onnxruntime.reactnative.OnnxruntimePackage
+   - Import: import android.util.Log
+   - In getPackages(): add OnnxruntimePackage() to the packages list
+   - In onCreate(): log registered packages for debugging
+
+Step 2: Align Expo Plugin Configuration
+   File: frontend/app.json
+   - Removed redundant "onnxruntime-react-native" package plugin entry
+   - Kept only: "./plugins/withOnnxruntimeReactNative" (local plugin)
+   - This prevents plugin conflicts during prebuild
+
+Step 3: Optimize Architecture List
+   File: frontend/android/gradle.properties
+   - Changed from: reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
+   - Changed to: reactNativeArchitectures=arm64-v8a,x86_64
+   - Removed armeabi-v7a (32-bit) which was causing C++ clang++ crash
+
+Step 4: Keep New Architecture Enabled
+   File: frontend/android/gradle.properties
+   - newArchEnabled=true (required by react-native-worklets and react-native-reanimated)
+   - Note: Initially disabled this, but had to revert due to dependency requirements
+
+Step 5: Clean Rebuild Sequence
+   Commands (in order):
+   1. cd frontend
+   2. npx expo prebuild --clean --platform android
+   3. cd android
+   4. Remove-Item -Recurse -Force .cxx, app\.cxx -ErrorAction SilentlyContinue
+   5. .\gradlew.bat clean
+   6. .\gradlew.bat app:assembleDebug -x lint -x test --stacktrace --configure-on-demand --build-cache -PreactNativeDevServerPort=8081 "-PreactNativeArchitectures=arm64-v8a,x86_64"
+   7. .\gradlew.bat installDebug --stacktrace
+
+Step 6: Fresh App Installation
+   - Uninstall old app from device/emulator first
+   - Ensure you're running the newly installed debug app, not Expo Go
+   - If using dev-client, rebuild: npx expo start --dev-client
+
+VERIFICATION:
+-----------
+After reinstalling, check Logcat for:
+- "Registered native packages: X. Sample: ..." (shows packages were registered)
+- The app should successfully load the ONNX model
+- Color analysis should work without "Registered native modules: 0" error
+
+KEY FILES MODIFIED:
+-------------------
+1. frontend/android/app/src/main/java/com/malikawang/dressha/MainApplication.kt
+2. frontend/android/gradle.properties
+3. frontend/app.json
+4. frontend/android/settings.gradle (already had onnxruntime-react-native include)
+5. frontend/plugins/withOnnxruntimeReactNative.js (local Expo plugin)
+
+WHY THIS WORKS:
+---------------
+- Manual registration bypasses autolinking failures
+- Clean prebuild regenerates all CMake/codegen files from scratch
+- Removing problematic architecture prevents compiler crashes
+- New architecture stays enabled because downstream packages require it
+- Fresh APK install ensures device runs latest binary with registered packages
+
+LESSONS LEARNED:
+----------------
+1. Expo autolinking can be unreliable for native packages; manual registration provides fallback
+2. 32-bit ARM (armeabi-v7a) is often unnecessary for modern devices and can cause build failures
+3. New architecture (Fabric/TurboModules) is required by many popular libraries
+4. Always uninstall app and clean CMake cache before testing native changes
+5. Add startup logging to verify runtime package registration
+
+NEXT STEPS IF STILL FAILING:
+----------------------------
+1. Check MainApplication onCreate() logs in Logcat to see registered package count
+2. Verify debug APK timestamp is newer than previous install
+3. Confirm you're running the installed debug app, not Expo Go
+4. Try "adb uninstall com.malikawang.dressha" then reinstall
+5. Check if app is running in a dev-client that wasn't rebuilt with native changes

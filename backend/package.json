@@ -1,0 +1,41 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "backend",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@gradio/client": "^2.0.4",
+    "@huggingface/inference": "^4.13.4",
+    "@huggingface/transformers": "^4.2.0",
+    "@openrouter/sdk": "^0.3.11",
+    "ai": "^6.0.168",
+    "axios": "^1.15.2",
+    "agenda": "^5.0.0",
+    "luxon": "^3.5.0",
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.0.0",
+    "compute-cosine-similarity": "^1.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "expo-constants": "~55.0.15",
+    "expo-location": "~55.1.8",
+    "express": "^5.2.1",
+    "google-auth-library": "^10.6.2",
+    "gradio": "^0.1.0",
+    "jimp": "^0.16.13",
+    "jsonwebtoken": "^9.0.3",
+    "mongodb": "^7.2.0",
+    "mongoose": "^9.0.1",
+    "multer": "^1.4.5-lts.1",
+    "nodemon": "^3.1.11"
+  }
+}
+
